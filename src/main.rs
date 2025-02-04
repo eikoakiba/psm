@@ -2,6 +2,7 @@ use std::{env, process::exit};
 
 pub mod args;
 mod core;
+mod password;
 mod util;
 
 const VERSION: f64 = 0.1;
@@ -13,7 +14,12 @@ fn main() {
         exit(1);
         //args::Config::default()
     });
-    let res: Result<(), ()> = core::process_args(&config);
+    // println!("{:?}", config);
+    let res: Result<String, String> = core::process_args(&config);
+    match res {
+        Ok(valv) => println!("[+]: {}", valv),
+        Err(err) => println!("ERROR: {}", err),
+    }
     //println!("{:?}", config);
     //banner(); // show the banner of this program
 }
