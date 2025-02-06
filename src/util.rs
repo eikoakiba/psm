@@ -1,5 +1,6 @@
 use crate::password;
 use std::fs;
+use std::io::stdin;
 use std::io::Write;
 use std::path::Path;
 
@@ -53,15 +54,23 @@ pub fn banner(version: &f64) {
 
 // TODO: Replace Result<(), String> with bool
 // Add password to the origin
-pub fn origin_add(password: &password::Password) -> bool {
+pub fn origin_add(password: &password::Password) -> Result<(), String> {
     if !is_data_exists(&password.name) {
         if let Err(_) = fs::create_dir(format!("./pass/{}", &password.name)) {
-            println!("[!] Can't find the password folder");
-            return false;
+            return Err(format!("[!] Can't find the password folder"));
         }
     } else {
         // TODO: Ask the user to agree the existence of password
-        println!("[!] notice you are updating the exists password");
+        let answer = Ask(format!(
+            "You are overriting the current content of {} password, are you ok? [Y,n]? ",
+            &password.name
+        )
+        .as_str())?;
+
+        if !answer {
+            return Err(format!("Stop process by user input"));
+        }
+        // println!("[!] notice you are updating the exists password");
     }
 
     let data: String = format!("{}", password.value.clone());
@@ -69,29 +78,25 @@ pub fn origin_add(password: &password::Password) -> bool {
 
     let file_data = fs::File::create(format!("./pass/{}/data", &password.name));
     if let Err(_) = file_data {
-        println!("Can't make data file_data");
-        return false;
+        return Err(format!("Can't make data file_data"));
     }
 
     let res = file_data.unwrap().write_all(data.as_bytes());
     if let Err(_) = res {
-        println!("Can't write to the file_data");
-        return false;
+        return Err(format!("Can't write to the file_data"));
     }
 
     let file_meta = fs::File::create(format!("./pass/{}/meta", &password.name));
     if let Err(_) = file_meta {
-        println!("Can't make meta file");
-        return false;
+        return Err(format!("Can't make meta)) file"));
     }
 
     let res = file_meta.unwrap().write_all(meta.as_bytes());
     if let Err(_) = res {
-        println!("Can't write to the file meta");
-        return false;
+        return Err(format!("Can't write to the file meta"));
     }
 
-    true
+    Ok(())
 }
 
 pub fn origin_show(name: &String) -> Result<password::Password, String> {
@@ -145,6 +150,23 @@ pub fn origin_show(name: &String) -> Result<password::Password, String> {
 
     // return the pass obj
     Ok(u_pass)
+}
+
+pub fn Ask(text: &str) -> Result<bool, String> {
+    // TODO: The print is not working. idk...
+    println!("[?] {}", text);
+    let mut input: String = String::new();
+    let res = stdin().read_line(&mut input).ok();
+    match res {
+        Some(_) => {
+            // TODO: Better way of removing new line
+            if &input.to_lowercase().as_str()[0..input.len() - 2] == "y" {
+                return Ok(true);
+            }
+            return Ok(false);
+        }
+        None => return Err(format!("Can't read the user input")),
+    }
 }
 
 pub fn is_data_exists(name: &str) -> bool {

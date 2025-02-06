@@ -32,8 +32,8 @@ fn add_new_password(
         actual_key,
     );
 
-    if !origin_add(&base) {
-        return Err(String::from("Fail to make new password"));
+    if let Err(err) = origin_add(&base) {
+        return Err(format!("Add Password: {}", err));
     }
 
     println!("Successfully Encrypted your password: {:?}", base.value);
