@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::{Read, Write};
 
 use crate::args::{CfgField, Config};
 use crate::password::{self};
@@ -52,6 +53,7 @@ pub fn generate_random_key() -> Vec<u8> {
     // let mut rng: &[u8; 32] = &[32; 32];
     let asd = Aes256Gcm::generate_key(OsRng);
     let bts = asd.as_slice();
+    // println!("{}", bts.len());
     // println!("{:?}", BASE64_STANDARD.encode(asd));
     // let n_key: String = String::from_utf8(asd).unwrap();
     Vec::from(bts)
@@ -96,7 +98,7 @@ pub fn show_password(name: &String, key: &String) -> Result<(), String> {
         ));
     }
     let key = key.unwrap();
-    println!("{}", key.len());
+    // println!("{}", key.len());
 
     // Show/print the actual metadata and data
     if let Err(err) = upr {
@@ -108,9 +110,9 @@ pub fn show_password(name: &String, key: &String) -> Result<(), String> {
     let f_pass = BASE64_STANDARD.decode(&upr.value).unwrap();
     let f_pass_res = f_pass.as_slice();
 
-    println!("This is the read key from args: {:?}", key.as_slice());
-    println!("This is the read password base64 from file: {}", &upr.value);
-    println!("This is the read password from file: {:?}", f_pass_res);
+    // println!("This is the read key from args: {:?}", key.as_slice());
+    // println!("This is the read password base64 from file: {}", &upr.value);
+    // println!("This is the read password from file: {:?}", f_pass_res);
 
     let nonce_res = &f_pass_res[..NONCE_SIZE_SAMPLE];
     let f_pass_res = &f_pass_res[NONCE_SIZE_SAMPLE..];
@@ -144,6 +146,33 @@ pub fn print_list_passwords(field: &CfgField) -> Result<(), String> {
     todo!("Print the list of user passwords's metadata");
 }
 
+// A simple check to see if the user input is AES key or Hash Value
+pub fn validate_user_key(key: &str) -> Result<(), String> {
+    let mut f_key: String = String::new();
+    let hashed_key = format!("{:x}", md5::compute(key));
+
+    // check the legnth of key
+    if key.len() != 44 {
+        return Err(format!("The key is not valid!"));
+    }
+
+    if let Ok(mut v) = fs::File::open("./pass/meta") {
+        if let Err(_) = v.read_to_string(&mut f_key) {
+            return Err(format!(
+                "There is a problem in origin structure, please do the `psm --init` again"
+            ));
+        }
+    }
+
+    if (hashed_key != f_key) {
+        return Err(format!(
+            "Your key is not same as what you made before. please give the original key"
+        ));
+    }
+
+    return Ok(());
+}
+
 pub fn process_args(config: &Config) -> Result<String, String> {
     if let Some(_) = config.IsInitOrigin() {
         if let Err(err) = fs::create_dir("./pass") {
@@ -152,14 +181,31 @@ pub fn process_args(config: &Config) -> Result<String, String> {
         // TODO: Make a single function to generate key
         let n_key = generate_random_key();
         let m_key = BASE64_STANDARD.encode(n_key);
+
+        let origin_meta = fs::File::create("./pass/meta");
+        if let Ok(mut meta_file) = origin_meta {
+            if let Err(_) = meta_file.write_all(util::get_hash(&m_key).as_bytes()) {
+                return Err(format!("Can't add data to the origin's metadata file"));
+            }
+        } else {
+            return Err(format!("Can't create the metadata file for origin"));
+        }
         println!();
         return Ok(format!(
             "Sucsessfully generated the origin :D\nThis is your new key: {}\n",
             String::from(m_key),
         ));
     }
+
+    if config.list_passwords.IsExists() {
+        if let Err(err) = util::list_origin() {
+            return Err(format!("list origin{}", err));
+        }
+        return Ok(String::default());
+    }
+
     // TODO: Make a better process if statement
-    else if let Some(_) = config.IsNewPassword() {
+    if let Some(_) = config.IsNewPassword() {
         // Check for existsing of origin
 
         let new_pass = config.IsNewPassword();
@@ -176,6 +222,11 @@ pub fn process_args(config: &Config) -> Result<String, String> {
         let mut is_new_key: bool = false;
         let actual_key: &[u8] = &[0; 30];
         let m_key: Vec<u8>;
+
+        // Check the password validity
+        if let Err(err) = validate_user_key(&l_key.unwrap().value) {
+            return Err(format!("Key: {err}"));
+        }
 
         if let None = l_key {
             if let None = l_generate_pass {
@@ -223,6 +274,11 @@ pub fn process_args(config: &Config) -> Result<String, String> {
             return Err(String::from("Please provide the key"));
         }
         let key = key.unwrap();
+
+        if let Err(err) = validate_user_key(&key.value) {
+            return Err(format!("Key: {err}"));
+        }
+
         if let Err(err) = show_password(&p_name.value, &key.value) {
             return Err(format!("Print: {}", err));
         }

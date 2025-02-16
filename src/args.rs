@@ -1,3 +1,7 @@
+use std::process::exit;
+
+use crate::{util, VERSION};
+
 #[derive(Default, Debug)]
 pub struct CfgField {
     pub name: String,
@@ -21,11 +25,8 @@ pub struct Config {
     pub new_name: CfgField,
     new_description: CfgField,
     new_password_tui: CfgField,
-    list_passwords: CfgField,
+    pub list_passwords: CfgField,
     resset_origin: CfgField,
-    list_password_verbose: CfgField,
-    program_version: CfgField,
-    modify_password: CfgField,
 }
 
 // const ARGS: &'static [&'static str] = &["-a"];
@@ -99,13 +100,38 @@ impl Config {
     }
 }
 
-pub fn parse_arguments(args: &Vec<String>) -> Option<Config> {
+pub fn parse_arguments(args: &Vec<String>) -> Result<Config, String> {
     let mut cfg: Config = Config::new();
     let mut two: bool = false;
     let mut args_iter_obj = args[1..].iter().enumerate();
+
     if args.len() <= 1 {
-        // println!("There is no any item");
-        return None;
+        if let Ok(r) = util::AskStr("Find> ") {
+            // Check the input for validity
+            cfg.new_name = CfgField {
+                name: String::from("-n"),
+                value: String::from(r),
+                rank: 0,
+            };
+        } else {
+            return Err(format!(
+                "Can't read the name of your password. please enter a valid name"
+            ));
+        }
+
+        if let Ok(r) = util::AskStr("Key> ") {
+            cfg.key = CfgField {
+                name: String::from("-k"),
+                value: String::from(r),
+                rank: 1,
+            };
+        } else {
+            return Err(format!(
+                "Can't read the key of your password. please enter a valid key"
+            ));
+            // return None;
+        }
+        return Ok(cfg);
     }
     loop {
         if args_iter_obj.len() <= 0 {
@@ -120,7 +146,27 @@ pub fn parse_arguments(args: &Vec<String>) -> Option<Config> {
         // let mut i: usize;
         let mut v: &String = &String::default();
         let (index, mut value) = args_iter_obj.next().expect("The Point 1");
-
+        if value == "version" {
+            println!("{}", VERSION);
+            exit(0);
+        }
+        if !value.starts_with("-") {
+            cfg.new_name = CfgField {
+                name: String::from("-n"),
+                value: String::from(value),
+                rank: index,
+            };
+            if let Some((i3, v3)) = args_iter_obj.next() {
+                cfg.key = CfgField {
+                    name: String::from("-k"),
+                    value: String::from(v3),
+                    rank: i3,
+                };
+            } else {
+                return Err(format!("[!] Please provid the key as the second option"));
+            }
+            break;
+        }
         if two {
             loop {
                 // println!("RIGHT");
@@ -202,9 +248,11 @@ pub fn parse_arguments(args: &Vec<String>) -> Option<Config> {
                 }
             }
             &_ => {
-                println!("{}", value);
+                return Err(format!(
+                    "Please enter a valid command. You can see command list with `psm --help`"
+                ));
             }
         }
     }
-    Some(cfg)
+    Ok(cfg)
 }

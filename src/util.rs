@@ -1,15 +1,18 @@
 use crate::password;
+use crate::password::Password;
+use md5;
 use std::fs;
 use std::io::stdin;
 use std::io::Write;
 use std::path::Path;
 
-pub fn banner(version: &f64) {
+pub fn banner(version: f64) {
     println!(
         "MyPass password manager version {} \n\
         A simple and powerfull password manager \n\
         \nUsage: mypass [OPTIONS...] \n\
             \
+        \t-k Add the key \n\
         \t-a Add a new password \n\
         \t-n Set name for your new password \n\
         \t-d Set description for your new password \n\
@@ -52,13 +55,18 @@ pub fn banner(version: &f64) {
 // of the parent folder. with that said we don't need to store the name
 // of the password in the meta file anymore.
 
-// TODO: Replace Result<(), String> with bool
+pub fn get_hash(key: &str) -> String {
+    // Do the hash logic
+    format!("{:x}", md5::compute(key))
+}
+
 // Add password to the origin
 pub fn origin_add(password: &password::Password) -> Result<(), String> {
     if !is_data_exists(&password.name) {
         if let Err(_) = fs::create_dir(format!("./pass/{}", &password.name)) {
             return Err(format!("[!] Can't find the password folder"));
         }
+        // Make the meta file for saving metadata about the origin
     } else {
         // TODO: Ask the user to agree the existence of password
         let answer = Ask(format!(
@@ -98,7 +106,7 @@ pub fn origin_add(password: &password::Password) -> Result<(), String> {
 
     Ok(())
 }
-
+// Show password from origin
 pub fn origin_show(name: &String) -> Result<password::Password, String> {
     let mut u_pass = password::Password::default();
 
@@ -152,6 +160,32 @@ pub fn origin_show(name: &String) -> Result<password::Password, String> {
     Ok(u_pass)
 }
 
+pub fn list_origin() -> Result<Vec<Password>, String> {
+    let list_res: Vec<Password> = Vec::new();
+    let mut counter = 0;
+
+    // get the files from origin
+    if let Ok(v) = fs::read_dir("./pass") {
+        println!("This is the saved passwords list: \n");
+        for items in v {
+            if let Err(_) = items {
+                return Err(format!("Error when reading origin passwords"));
+            }
+            let item = items.unwrap();
+            // Read only the folders
+            if item.path().is_dir() {
+                println!("{}. {:?}", counter + 1, item.file_name());
+            }
+            // TODO: Show more information about the password
+            counter += 1;
+        }
+    } else {
+        return Err(format!("Can't read from origin"));
+    }
+
+    Ok(list_res)
+}
+
 pub fn Ask(text: &str) -> Result<bool, String> {
     // TODO: The print is not working. idk...
     println!("[?] {}", text);
@@ -164,6 +198,21 @@ pub fn Ask(text: &str) -> Result<bool, String> {
                 return Ok(true);
             }
             return Ok(false);
+        }
+        None => return Err(format!("Can't read the user input")),
+    }
+}
+
+pub fn AskStr(text: &str) -> Result<String, String> {
+    // TODO: The print is not working. idk...
+    println!("[?] {}", text);
+    let mut input: String = String::new();
+    let res = stdin().read_line(&mut input).ok();
+    input = String::from(&input.as_str()[0..input.len() - 2]);
+    match res {
+        Some(_) => {
+            // TODO: Better way of removing new line
+            return Ok(input);
         }
         None => return Err(format!("Can't read the user input")),
     }
